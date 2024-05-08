@@ -4,6 +4,7 @@ import argparse
 from data.build_DG_dataloader import build_reid_test_loader
 from model import make_model
 from processor.part_attention_vit_processor import do_inference as do_inf_pat
+from processor.part_attention_vit_processor import do_inference_with_save
 from processor.ori_vit_processor_with_amp import do_inference as do_inf
 from utils.logger import setup_logger
 
@@ -12,6 +13,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ReID Training")
     parser.add_argument(
         "--config_file", default="./config/PAT.yml", help="path to config file", type=str
+    )
+    parser.add_argument(
+        "--save_dir", default='./inf/', help='path to save inference results', type = str
+    )
+    parser.add_argument(
+        "--save", default=False, type = bool
     )
     parser.add_argument("opts", help="Modify config options using the command-line", default=None,
                         nargs=argparse.REMAINDER)
@@ -44,9 +51,17 @@ if __name__ == "__main__":
     model = make_model(cfg, cfg.MODEL.NAME, 0,0,0)
     model.load_param(cfg.TEST.WEIGHT)
 
+    save_dir = os.path.join(args.save_dir, cfg.LOG_NAME)
+    if save_dir and not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    save_dir = save_dir + 'wrong_samples.jsonl'
+
     for testname in cfg.DATASETS.TEST:
         val_loader, num_query = build_reid_test_loader(cfg, testname)
         if cfg.MODEL.NAME == 'part_attention_vit':
-            do_inf_pat(cfg, model, val_loader, num_query)
+            if args.save:
+                do_inference_with_save(cfg, model, val_loader, num_query, save_dir)
+            else:
+                do_inf_pat(cfg, model, val_loader, num_query)
         else:
             do_inf(cfg, model, val_loader, num_query)

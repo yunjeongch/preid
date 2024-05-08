@@ -12,6 +12,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from data.build_DG_dataloader import build_reid_test_loader, build_reid_train_loader
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
 def part_attention_vit_do_train_with_amp(cfg,
              model,
@@ -87,23 +88,23 @@ def part_attention_vit_do_train_with_amp(cfg,
             vid = informations['targets']
             camid = informations['camid']
             img_path = informations['img_path']
-            t_domains = informations['others']['domains']
+            # t_domains = informations['others']['domains']
 
             optimizer.zero_grad()
             img = img.to(device)
             target = vid.to(device)
             target_cam = camid.to(device)
-            t_domains = t_domains.to(device)
+            # t_domains = t_domains.to(device)
 
             model.to(device)
             with amp.autocast(enabled=True):
                 score, layerwise_global_feat, layerwise_feat_list = model(img)
                 
                 ############## patch learning ######################
-                patch_agent, position = patch_centers.get_soft_label(img_path, layerwise_feat_list[-1], vid=vid, camid=camid)
+                patch_agent, position = patch_centers.get_soft_label(img_path, layerwise_feat_list[-1], vid=vid, camid=camid)   # patch_agent: [3, N, emb_dim], position: [N,]
                 l_ploss = cfg.MODEL.PC_LR
                 if cfg.MODEL.PC_LOSS:
-                    feat = torch.stack(layerwise_feat_list[-1], dim=0)
+                    feat = torch.stack(layerwise_feat_list[-1], dim=0) # stack last layer's emb -> [3, B, emb_dim]
                     feat = feat[:,::1,:]
                     '''
                     loss1: clustering loss(for patch centers)
@@ -113,7 +114,12 @@ def part_attention_vit_do_train_with_amp(cfg,
                     loss2: reid-specific loss
                     (ID + Triplet loss)
                     '''
+                    
                     reid_loss = loss_fn(score, layerwise_global_feat[-1], target, all_posvid=all_posvid, soft_label=cfg.MODEL.SOFT_LABEL, soft_weight=cfg.MODEL.SOFT_WEIGHT, soft_lambda=cfg.MODEL.SOFT_LAMBDA)
+                    if np.isnan(reid_loss.item()):
+                        print('feat: ', feat)
+                        print('score: ', score)
+                        print('img: ', img)
                 else:
                     ploss = torch.tensor([0.]).cuda()
                     reid_loss = loss_fn(score, layerwise_global_feat[-1], target, soft_label=cfg.MODEL.SOFT_LABEL)
@@ -247,6 +253,50 @@ def do_inference(cfg,
             img_path_list.extend(imgpath)
 
     cmc, mAP, _, _, _, _, _ = evaluator.compute()
+    logger.info("Validation Results ")
+    logger.info("mAP: {:.1%}".format(mAP))
+    for r in [1, 5, 10]:
+        logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
+    logger.info("total inference time: {:.2f}".format(time.time() - t0))
+    return cmc, mAP
+
+def do_inference_with_save(cfg,
+                 model,
+                 val_loader,
+                 num_query,
+                 save_dir
+                ):
+    device = "cuda"
+    logger = logging.getLogger("PAT.test")
+    logger.info("Enter inferencing")
+
+    evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
+
+    evaluator.reset()
+
+    if device:
+        if torch.cuda.device_count() > 1:
+            print('Using {} GPUs for inference'.format(torch.cuda.device_count()))
+            model = nn.DataParallel(model)
+        model.to(device)
+
+    model.eval()
+    img_path_list = []
+    t0 = time.time()
+    for n_iter, informations in enumerate(val_loader):
+        img = informations['images']
+        pid = informations['targets']
+        camids = informations['camid']
+        imgpath = informations['img_path']
+        # domains = informations['others']['domains']
+        with torch.no_grad():
+            img = img.to(device)
+            # camids = camids.to(device)
+            feat = model(img)
+            evaluator.update((feat, pid, camids, imgpath))
+            img_path_list.extend(imgpath)
+
+    cmc, mAP, _, _, _, _, _ = evaluator.compute(save_dir)
     logger.info("Validation Results ")
     logger.info("mAP: {:.1%}".format(mAP))
     for r in [1, 5, 10]:

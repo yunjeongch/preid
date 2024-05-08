@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import os
 from utils.reranking import re_ranking
+from utils.file_io import save_jsonl
 
 
 def euclidean_distance(qf, gf):
@@ -27,7 +28,7 @@ def cosine_similarity(qf, gf):
     return dist_mat
 
 
-def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
+def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, q_paths, g_paths, save_dir, max_rank=50):
     """Evaluation with market1501 metric
         Key: for each query identity, its gallery images from the same camera view are discarded.
         """
@@ -46,10 +47,13 @@ def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
     all_cmc = []
     all_AP = []
     num_valid_q = 0.  # number of valid query
+    wrong_predictions = []
+    wrong_at_all = []
     for q_idx in range(num_q):
         # get query pid and camid
         q_pid = q_pids[q_idx]
         q_camid = q_camids[q_idx]
+        q_path = q_paths[q_idx]
 
         # remove gallery samples that have the same pid and camid with query
         order = indices[q_idx]  # select one row
@@ -62,7 +66,7 @@ def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
         if not np.any(orig_cmc):
             # this condition is true when query identity does not appear in gallery
             continue
-
+        
         cmc = orig_cmc.cumsum()
         cmc[cmc > 1] = 1
 
@@ -79,6 +83,35 @@ def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
         tmp_cmc = np.asarray(tmp_cmc) * orig_cmc
         AP = tmp_cmc.sum() / num_rel
         all_AP.append(AP)
+
+        top5_gallery_info = [(int(g_pids[i]), int(g_camids[i])) for i in order[keep][:5]]
+        top5_gallery_paths = [g_paths[i] for i in order[keep][:5]]
+        
+        if q_pid != g_pids[order[0]]:
+            wrong_at_all.append({
+                'query_index': int(q_idx),
+                'query_pid': int(q_pid),
+                'query_camid': int(q_camid),
+                'query_path': q_path,
+                'top5_gallery': top5_gallery_info,
+                'top5_gallery_path': top5_gallery_paths
+            })
+        elif cmc[0] != 1:
+            top5_gallery_info = [(int(g_pids[i]), int(g_camids[i])) for i in order[keep][:5]]
+            wrong_predictions.append({
+                'query_index': int(q_idx),
+                'query_pid': int(q_pid),
+                'query_path': q_path,
+                'query_camid': int(q_camid),
+                'top5_gallery': top5_gallery_info,
+                'top5_gallery_path': top5_gallery_paths
+            })
+
+    if save_dir and wrong_predictions:
+        save_jsonl(wrong_predictions, save_dir)
+    
+    if save_dir and wrong_at_all:
+        save_jsonl(wrong_at_all, save_dir.replace('wrong', 'wrong_at_all'))
 
     assert num_valid_q > 0, "Error: all query identities do not appear in gallery"
 
@@ -101,14 +134,16 @@ class R1_mAP_eval():
         self.feats = []
         self.pids = []
         self.camids = []
+        self.imgpaths = []
 
     def update(self, output):  # called once for each batch
-        feat, pid, camid = output
+        feat, pid, camid, imgpath = output
         self.feats.append(feat.cpu())
         self.pids.extend(np.asarray(pid))
         self.camids.extend(np.asarray(camid))
+        self.imgpaths.extend(imgpath)
 
-    def compute(self):  # called after each epoch
+    def compute(self, save_dir = ''):  # called after each epoch
         feats = torch.cat(self.feats, dim=0)
         if self.feat_norm:
             # print("The test feature is normalized")
@@ -117,9 +152,11 @@ class R1_mAP_eval():
         qf = feats[:self.num_query]
         q_pids = np.asarray(self.pids[:self.num_query])
         q_camids = np.asarray(self.camids[:self.num_query])
+        q_paths = np.asarray(self.imgpaths[:self.num_query])
         # gallery
         gf = feats[self.num_query:]
         g_pids = np.asarray(self.pids[self.num_query:])
+        g_paths = np.asarray(self.imgpaths[self.num_query:])
 
         g_camids = np.asarray(self.camids[self.num_query:])
         if self.reranking:
@@ -130,8 +167,8 @@ class R1_mAP_eval():
         else:
             # print('=> Computing DistMat with euclidean_distance')
             distmat = euclidean_distance(qf, gf)
-        cmc, mAP = eval_func(distmat, q_pids, g_pids, q_camids, g_camids)
-
+        cmc, mAP = eval_func(distmat, q_pids, g_pids, q_camids, g_camids, q_paths, g_paths, save_dir)
+        
         return cmc, mAP, distmat, self.pids, self.camids, qf, gf
 
 

@@ -518,3 +518,11 @@ class PathManager:
         PathManager._NATIVE_PATH_HANDLER._strict_kwargs_check = enable
         for handler in PathManager._PATH_HANDLERS.values():
             handler._strict_kwargs_check = enable
+
+import json
+
+def save_jsonl(data, filename):
+    """Save list data to a JSONL file"""
+    with open(filename, "w") as f: 
+        for entry in data:
+            f.write(json.dumps(entry) + '\n')
