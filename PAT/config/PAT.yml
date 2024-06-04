@@ -60,3 +60,6 @@ LOG_ROOT: '../../data/exp/' # root of log file
 LOG_ROOT: '/home/liyuke/data/exp/' # root of log file
 TB_LOG_ROOT: './tb_log/'
 LOG_NAME: 'PAT/market/vit_base'
+
+# Body Pose EXP
+POSE_EXP: False

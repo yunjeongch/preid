@@ -14,11 +14,15 @@ class Dataset(object):
         combineall (bool): combines train, query and gallery in a
             dataset for training.
         verbose (bool): show information.
+        
     """
     _junk_pids = []  # contains useless person IDs, e.g. background, false detections
 
     def __init__(self, train, query, gallery, transform=None, mode='train',
                  combineall=False, verbose=True, **kwargs):
+        
+        if kwargs.get('pose_exp', False):
+            train = self.modify_train_with_pose(train)
         self.train = train
         self.query = query
         self.gallery = gallery
@@ -61,6 +65,58 @@ class Dataset(object):
             return self
         else:
             return self.__add__(other)
+        
+    def modify_train_with_pose(self, train):
+        dataset_name = train[0][1].split('_')[0]
+        dataset_path = os.path.join(train[0][0].split(dataset_name)[0], dataset_name)
+        pose_path = os.path.join(dataset_path, 'posture.txt')
+        pose_dict = {}
+        with open(pose_path, 'r') as f:
+            for line in f:
+                pose_dict[line.split(' ')[0]] = int(line.split(' ')[1])
+        
+        # sort train by pid
+        train = sorted(train, key=lambda x: int(x[1].split('_')[1]))
+        new_train = []
+        init_pid = int(train[0][1].split('_')[1])
+        end_pid = int(train[-1][1].split('_')[1])
+        new_pid = cur_pid = init_pid
+        i = 0
+        while i < len(train):
+            back_set = []
+            front_set = []
+            while int(train[i][1].split('_')[1]) == cur_pid:
+                # pose_dict[cur_data] == -1, 0 -> back_set
+                # pose_dict[cur_data] == 1, 0 -> front_set
+                pose_dir = pose_dict[train[i][0].split(dataset_name)[1][1:]]
+                if pose_dir == 0:
+                    back_set.append(train[i])
+                    front_set.append(train[i])
+                elif pose_dir == -1:
+                    back_set.append(train[i])
+                elif pose_dir == 1:
+                    front_set.append(train[i])
+                else:
+                    raise ValueError("pose_dir should be -1, 0, 1")
+                i += 1
+                if i == len(train):
+                    break
+            if len(back_set) > 0:
+                back_set = [(x[0], dataset_name + '_' + str(new_pid), x[2]) for x in back_set]
+                new_train.extend(back_set)
+                new_pid += 1
+            if len(front_set) > 0:
+                front_set = [(x[0], dataset_name + '_' + str(new_pid), x[2]) for x in front_set]
+                new_train.extend(front_set)
+                new_pid += 1
+            # if len(front_set) + len(back_set) == 0:
+            #     print("no data for pid: ", cur_pid)
+            cur_pid += 1
+            
+        return new_train
+                
+        
+        
 
     def parse_data(self, data):
         """Parses data list and returns the number of person IDs

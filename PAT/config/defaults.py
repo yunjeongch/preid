@@ -235,3 +235,6 @@ _C.LOG_ROOT = ""
 _C.TB_LOG_ROOT = ""
 # log dir name
 _C.LOG_NAME = ""
+
+# Body Pose EXP
+_C.POSE_EXP = False
