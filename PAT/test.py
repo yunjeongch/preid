@@ -7,6 +7,7 @@ from processor.part_attention_vit_processor import do_inference as do_inf_pat
 from processor.part_attention_vit_processor import do_inference_with_save
 from processor.ori_vit_processor_with_amp import do_inference as do_inf
 from utils.logger import setup_logger
+from mmpose.apis import MMPoseInferencer
 
 
 if __name__ == "__main__":
@@ -19,6 +20,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save", default=False, type = bool
+    )
+    parser.add_argument(
+        "--pose", default=False, type = bool
     )
     parser.add_argument("opts", help="Modify config options using the command-line", default=None,
                         nargs=argparse.REMAINDER)
@@ -54,13 +58,16 @@ if __name__ == "__main__":
     save_dir = os.path.join(args.save_dir, cfg.LOG_NAME)
     if save_dir and not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    save_dir = save_dir + 'wrong_samples.jsonl'
+    save_dir = save_dir + 'pred.jsonl'
 
     for testname in cfg.DATASETS.TEST:
         val_loader, num_query = build_reid_test_loader(cfg, testname)
         if cfg.MODEL.NAME == 'part_attention_vit':
             if args.save:
                 do_inference_with_save(cfg, model, val_loader, num_query, save_dir)
+            elif args.pose:
+                pose_model = MMPoseInferencer(pose2d=cfg.MODEL.MMPOSE_CONFIG, pose2d_weights=cfg.MODEL.MMPOSE_CKPT, device = "cuda")
+                do_inf_pat(cfg, model, val_loader, num_query, pose_model)
             else:
                 do_inf_pat(cfg, model, val_loader, num_query)
         else:
