@@ -147,9 +147,9 @@ class TripletLoss(object):
                 pos_weights = calculate_weights(keypoints, keypoints[p_inds], widths, alpha = self.alpha)
                 neg_weights = calculate_weights(keypoints, keypoints[n_inds], widths, alpha = self.alpha)
               if self.pos:
-                input = pos_weights*dist_an - dist_ap
+                input = dist_an - pos_weights*dist_ap
               else:
-                input = pos_weights*dist_an - neg_weights*dist_ap
+                input = neg_weights*dist_an - pos_weights*dist_ap
             else:
               input = dist_an - dist_ap
             loss = self.ranking_loss(input, y)
