@@ -39,7 +39,7 @@ def build_reid_train_loader(cfg):
         if d == 'CUHK03_NP':
             dataset = DATASET_REGISTRY.get('CUHK03')(root=_root, cuhk03_labeled=False)
         else:
-            dataset = DATASET_REGISTRY.get(d)(root=_root, combineall=cfg.DATASETS.COMBINEALL)
+            dataset = DATASET_REGISTRY.get(d)(root=_root, combineall=cfg.DATASETS.COMBINEALL, pose_exp=cfg.POSE_EXP)
         if comm.is_main_process():
             dataset.show_train()
         if len(dataset.train[0]) < 4:
