@@ -1,6 +1,7 @@
 from cProfile import label
 import torch
 from torch import nn
+from .inferability import calculate_weights, discrete_weights
 
 
 def normalize(x, axis=-1):
@@ -111,19 +112,23 @@ class TripletLoss(object):
     modified based on original triplet loss using hard example mining
     """
 
-    def __init__(self, margin=None, hard_factor=0.0):
+    def __init__(self, margin=None, hard_factor=0.0, inferability = False, discrete = False, alpha = 0.5, pos = True):
         self.margin = margin
         self.hard_factor = hard_factor
+        self.alpha = alpha
+        self.pos = pos
+        self.inferability = inferability
+        self.discrete = discrete
         if margin is not None:
             self.ranking_loss = nn.MarginRankingLoss(margin=margin)
         else:
             self.ranking_loss = nn.SoftMarginLoss()
 
-    def __call__(self, global_feat, labels, normalize_feature=False):
+    def __call__(self, global_feat, labels, keypoints, widths, normalize_feature=False):
         if normalize_feature:
             global_feat = normalize(global_feat, axis=-1)
         dist_mat = euclidean_dist(global_feat, global_feat)
-        dist_ap, dist_an = hard_example_mining(dist_mat, labels)
+        dist_ap, dist_an, p_inds, n_inds = hard_example_mining(dist_mat, labels, True)
 
         dist_ap *= (1.0 + self.hard_factor)
         dist_an *= (1.0 - self.hard_factor)
@@ -134,7 +139,19 @@ class TripletLoss(object):
         else:
             # min_mat = dist_an.new().resize_as_(dist_an).fill_(-85)
             # input = max(min_mat, dist_an - dist_ap)
-            input = dist_an - dist_ap
+            if self.inferability and (keypoints is not None):
+              if self.discrete:
+                pos_weights = discrete_weights(keypoints, keypoints[p_inds], widths).to('cuda')
+                neg_weights = discrete_weights(keypoints, keypoints[n_inds], widths).to('cuda')
+              else:
+                pos_weights = calculate_weights(keypoints, keypoints[p_inds], widths, alpha = self.alpha)
+                neg_weights = calculate_weights(keypoints, keypoints[n_inds], widths, alpha = self.alpha)
+              if self.pos:
+                input = dist_an - pos_weights*dist_ap
+              else:
+                input = neg_weights*dist_an - pos_weights*dist_ap
+            else:
+              input = dist_an - dist_ap
             loss = self.ranking_loss(input, y)
         return loss, dist_ap, dist_an
 

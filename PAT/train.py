@@ -13,6 +13,7 @@ import os
 import argparse
 from config import cfg
 import loss as Patchloss
+from mmpose.apis import MMPoseInferencer
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -72,6 +73,10 @@ if __name__ == '__main__':
     num_classes = len(train_loader.dataset.pids)
     model_name = cfg.MODEL.NAME
     model = make_model(cfg, modelname=model_name, num_class=num_classes, camera_num=None, view_num=None)
+    if cfg.INFERABILITY.TRIPLET:
+        pose_model = MMPoseInferencer(pose2d=cfg.MODEL.MMPOSE_CONFIG, pose2d_weights=cfg.MODEL.MMPOSE_CKPT, device = "cuda")
+    else:
+        pose_model = None
     if cfg.MODEL.FREEZE_PATCH_EMBED and 'resnet' not in cfg.MODEL.NAME: # trick from moco v3
         model.base.patch_embed.proj.weight.requires_grad = False
         model.base.patch_embed.proj.bias.requires_grad = False
@@ -116,5 +121,6 @@ if __name__ == '__main__':
             loss_func,
             num_query, args.local_rank,
             patch_centers = patch_centers,
-            pc_criterion = pc_criterion
+            pc_criterion = pc_criterion,
+            pose_model = pose_model
         )

@@ -74,6 +74,9 @@ _C.MODEL.CLUSTER_K = 10 # num of clusters
 _C.MODEL.SOFT_WEIGHT = 0.5
 _C.MODEL.SOFT_LAMBDA = 0.5
 
+_C.MODEL.MMPOSE_CONFIG = ""
+_C.MODEL.MMPOSE_CKPT = ""
+
 #-----------------------------------------------------------------------------
 # INPUT
 # -----------------------------------------------------------------------------
@@ -96,7 +99,7 @@ _C.INPUT.DO_AUTOAUG = False
 # Augmix
 _C.INPUT.DO_AUGMIX = False
 # Random probability for image horizontal flip
-_C.INPUT.DO_FLIP = True
+_C.INPUT.DO_FLIP = False
 _C.INPUT.FLIP_PROB = 0.5
 # Value of padding size
 _C.INPUT.DO_PAD = True
@@ -236,5 +239,8 @@ _C.TB_LOG_ROOT = ""
 # log dir name
 _C.LOG_NAME = ""
 
-# Body Pose EXP
-_C.POSE_EXP = False
+_C.INFERABILITY = CN()
+_C.INFERABILITY.TRIPLET = False
+_C.INFERABILITY.ALPHA = 0.5
+_C.INFERABILITY.POS = False
+_C.INFERABILITY.DISCRETE = False
