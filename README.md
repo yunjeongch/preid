@@ -180,7 +180,16 @@ MODEL:
   MMPOSE_CONFIG: '../../mmpose/td-hm_hrnet-w48_8xb32-210e_coco-256x192.py'  # mmpose extractor config file (https://mmpose.readthedocs.io/en/latest/installation.html) Verify installation step 1 참고
   MMPOSE_CKPT: '../../mmpose/td-hm_hrnet-w48_8xb32-210e_coco-256x192-0e67c616_20220913.pth'
 
-INFERABILITY:
+DATASETS:
+  TRAIN: ('MSMT17',) # CUHK03, Market1501, MSMT17, RandPerson ## 훈련돌릴때 바꿔주기
+  TEST: ("MSMT17",)  # train.py 실행 시 validation dataset으로 작용, test.py 시 test dataset으로 작용 ## 훈련돌릴때 바꿔주기
+
+TEST:
+  WEIGHT: 'log/market/part_attention_vit_60.pth' # inference 시 가져올 pretrain weight 경로
+
+LOG_NAME: 'market/'  # log, trained weight 저장 폴더명 -> 폴더 당 weight 하나만 저장되므로 훈련할 때 폴더명 변경해줘야 함 !!
+
+INFERABILITY: ## 훈련 돌릴 때 적절한 값으로 변경
   TRIPLET: True  # inferability를 적용할 것인지 여부
   ALPHA: 0.5  # continuous ver. inferabiltiy (중간 보고서 버전)의 hyperparam
   POS: False  # positive에만 적용할 것인지 (True) 둘다 적용할 것인지 (false)
