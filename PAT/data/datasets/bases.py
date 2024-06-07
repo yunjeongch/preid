@@ -17,15 +17,11 @@ class Dataset(object):
         combineall (bool): combines train, query and gallery in a
             dataset for training.
         verbose (bool): show information.
-        
     """
     _junk_pids = []  # contains useless person IDs, e.g. background, false detections
 
     def __init__(self, train, query, gallery, transform=None, mode='train',
                  combineall=False, verbose=True, **kwargs):
-        
-        if kwargs.get('pose_exp', False):
-            train = self.modify_train_with_pose(train)
         self.train = train
         self.query = query
         self.gallery = gallery
