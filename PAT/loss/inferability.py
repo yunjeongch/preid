@@ -119,3 +119,82 @@ def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0
             plt.grid(True)
             plt.savefig(f'mixed_von_mises_plot{i}.png')
     return torch.tensor(mixed_pdf_values)
+
+
+def lenght_of_elipse_curve(t1, t2, a, b):
+    if t1 > t2:
+        t_range_1 = np.linspace(t1, np.pi, int(100 * (np.pi - t1) / np.pi))
+        t_range_2 = np.linspace(-np.pi, t2, int(100 * (np.pi + t2) / np.pi))
+        t_range = np.concatenate([t_range_1, t_range_2])
+    else:
+        t_range = np.linspace(t1, t2, 100)
+    x_range = a * np.cos(t_range)
+    y_range = b * np.sin(t_range)
+    length_naive_sum = np.sum(np.sqrt((x_range[1:] - x_range[:-1])**2 + (y_range[1:] - y_range[:-1])**2))
+    return length_naive_sum, x_range, y_range
+
+def from_to_t(theta, a, b):
+    if theta==0:
+        from_t = -np.pi/2
+        to_t = np.pi/2
+    elif theta==np.pi/2:
+        from_t = - np.pi
+        to_t = 0
+    elif theta==np.pi:
+        from_t = np.pi/2
+        to_t = -np.pi/2
+    else:
+        alpha = np.arctan(b/a / np.tan(theta))
+        if 0 < theta and theta < np.pi/2:
+            from_t = alpha - np.pi
+            to_t = alpha 
+        elif np.pi/2 < theta and theta < np.pi:
+            from_t = alpha + np.pi
+            to_t = alpha
+        elif -np.pi < theta and theta < -np.pi/2:
+            from_t = alpha
+            to_t = alpha - np.pi
+        else:
+            from_t = alpha
+            to_t = alpha + np.pi
+    return from_t, to_t
+
+def symmetric_t_in_half_elipse(from_t, to_t):
+    if 0 < from_t and from_t <= np.pi/2:
+        from_t = from_t
+        to_t = np.pi
+    elif np.pi/2 < from_t and from_t <= np.pi:
+        from_t = -to_t
+        to_t = np.pi
+    elif -np.pi <= from_t and from_t <= -np.pi/2:
+        to_t = -from_t
+        from_t = 0
+    else:
+        from_t = 0
+        to_t = to_t
+    return from_t, to_t
+
+def periodic_distribution_weights(q_theta, g_theta, a = 1, b = 1.5, min_weight = 0.5):
+    from_t_q, to_t_q = from_to_t(q_theta, a, b)
+    from_t_g, to_t_g = from_to_t(g_theta, a, b)
+    # inter_from_t, inter_to_t, _, _  = intersection_union_of_ranges(from_t_q, to_t_q, from_t_g, to_t_g)
+    from_t_in_half_1, to_t_in_half_1 = symmetric_t_in_half_elipse(from_t_q, to_t_q)
+    from_t_in_half_2, to_t_in_half_2 = symmetric_t_in_half_elipse(from_t_g, to_t_g)
+    inter_from_t = max(from_t_in_half_1, from_t_in_half_2)
+    union_from_t = min(from_t_in_half_1, from_t_in_half_2)
+    inter_to_t = min(to_t_in_half_1, to_t_in_half_2)
+    union_to_t = max(to_t_in_half_1, to_t_in_half_2)
+    length_inter, _, _ = lenght_of_elipse_curve(inter_from_t, inter_to_t, a, b)
+    length_union, _, _ = lenght_of_elipse_curve(union_from_t, union_to_t, a, b)
+    
+    # half_elipse_length = np.pi * np.sqrt((a**2 + b**2)/2)
+    weight = (length_inter / length_union) * (1-min_weight) + min_weight
+    return weight
+
+def elipse_weights(query, counterpart, a = 1, b = 1.5, min_weight = 0.5):
+    B = query.shape[0]
+    weights = []
+    for i in range(B):
+        weight = periodic_distribution_weights(query[i], counterpart[i], a, b, min_weight)
+        weights.append(weight)
+    return torch.tensor(weights)
