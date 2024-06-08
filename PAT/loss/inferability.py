@@ -174,7 +174,7 @@ def symmetric_t_in_half_elipse(from_t, to_t):
         to_t = to_t
     return from_t, to_t
 
-def periodic_distribution_weights(q_theta, g_theta, a = 1, b = 1.5, min_weight = 0.5):
+def periodic_distribution_weights(q_theta, g_theta, a = 1, b = 1.5):
     from_t_q, to_t_q = from_to_t(q_theta, a, b)
     from_t_g, to_t_g = from_to_t(g_theta, a, b)
     # inter_from_t, inter_to_t, _, _  = intersection_union_of_ranges(from_t_q, to_t_q, from_t_g, to_t_g)
@@ -188,13 +188,14 @@ def periodic_distribution_weights(q_theta, g_theta, a = 1, b = 1.5, min_weight =
     length_union, _, _ = lenght_of_elipse_curve(union_from_t, union_to_t, a, b)
     
     # half_elipse_length = np.pi * np.sqrt((a**2 + b**2)/2)
-    weight = (length_inter / length_union) * (1-min_weight) + min_weight
-    return weight
+    inter_ratio = (length_inter / length_union)
+    return inter_ratio
 
 def elipse_weights(query, counterpart, a = 1, b = 1.5, min_weight = 0.5):
     B = query.shape[0]
     weights = []
     for i in range(B):
-        weight = periodic_distribution_weights(query[i], counterpart[i], a, b, min_weight)
+        inter_ratio = periodic_distribution_weights(query[i], counterpart[i], a, b)
+        weight = 2 * inter_ratio * (1-min_weight) + min_weight
         weights.append(weight)
     return torch.tensor(weights)
