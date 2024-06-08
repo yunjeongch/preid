@@ -161,6 +161,7 @@ def part_attention_vit_do_train_with_amp(cfg,
                 tbWriter.add_scalar('train/acc', acc_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
                 tbWriter.add_scalar("train/pc_loss", pc_loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
         if stop_training:
+            print('the loss became nan.... terminating!')
             break
 
         end_time = time.time()
@@ -227,7 +228,7 @@ def part_attention_vit_do_train_with_amp(cfg,
             print('removing {}. '.format(os.path.join(log_path, fname)))
     # save final checkpoint
     print('saving final checkpoint.\nDo not interrupt the program!!!')
-    torch.save(eval_model.state_dict(), os.path.join(log_path, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
+    torch.save(eval_model.state_dict(), os.path.join(log_path, cfg.MODEL.NAME + '_{}.pth'.format(max(epoch, 60))))
     print('done!')
 
 def do_inference(cfg,
@@ -262,7 +263,7 @@ def do_inference(cfg,
         camids = informations['camid']
         imgpath = informations['img_path']
         batch_size, _, width, _ = img.shape
-        widths = torch.tensor([width] * batch_size).unsqueeze(dim = -1).unsqueeze(dim = -1).to(device)
+        # widths = torch.tensor([width] * batch_size).unsqueeze(dim = -1).unsqueeze(dim = -1).to(device)
         # domains = informations['others']['domains']
         with torch.no_grad():
             img = img.to(device)
