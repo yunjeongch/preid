@@ -98,9 +98,9 @@ def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0
     counterpart_rad = np.deg2rad(counterpart.cpu().numpy())
     mixed_pdf_values = []
     for i in range(B):
-        pdf1_value = vonmises.pdf(counterpart_rad[i], kappa1, loc=mu1_rad[i])
-        pdf2_value = vonmises.pdf(counterpart_rad[i], kappa2, loc=mu2_rad[i])
-        mixed_pdf_value = weight * pdf1_value + (1 - weight) * pdf2_value
+        pdf1_value, pdf1_norm = vonmises.pdf(counterpart_rad[i], kappa1, loc=mu1_rad[i]), vonmises.pdf(mu1_rad[i], kappa1, loc=mu1_rad[i])
+        pdf2_value, pdf2_norm = vonmises.pdf(counterpart_rad[i], kappa2, loc=mu2_rad[i]), vonmises.pdf(mu2_rad[i], kappa2, loc=mu2_rad[i])
+        mixed_pdf_value = (weight * pdf1_value + (1 - weight) * pdf2_value) / (weight * pdf1_norm + (1-weight) * pdf2_norm)
         mixed_pdf_values.append(mixed_pdf_value)
         if vis and i%10 == 0:
             theta = np.linspace(-np.pi, np.pi, 360)
