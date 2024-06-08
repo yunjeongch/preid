@@ -1,7 +1,7 @@
 from cProfile import label
 import torch
 from torch import nn
-from .inferability import periodic_distribution_weights, periodic_distribution_weights_norm
+from .inferability import periodic_distribution_weights, periodic_distribution_weights_norm, elipse_weights
 
 
 def normalize(x, axis=-1):
@@ -146,6 +146,9 @@ class TripletLoss(object):
               if self.periodic:
                 pos_weights = periodic_distribution_weights_norm(_3d_dir, _3d_dir[p_inds], self.kappa1, self.kappa2).to('cuda')
                 neg_weights = periodic_distribution_weights_norm(_3d_dir, _3d_dir[n_inds], self.kappa1, self.kappa2).to('cuda')
+              else:
+                pos_weights = elipse_weights(_3d_dir, _3d_dir[p_inds]).to('cuda')
+                neg_weights = elipse_weights(_3d_dir, _3d_dir[n_inds]).to('cuda')
               if self.pos:
                 input = dist_an - pos_weights*dist_ap
               else:
