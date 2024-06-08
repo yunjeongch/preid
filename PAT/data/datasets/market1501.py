@@ -5,6 +5,7 @@ import warnings
 
 from .bases import ImageDataset
 from ..datasets import DATASET_REGISTRY
+from collections import defaultdict
 
 
 @DATASET_REGISTRY.register()
@@ -59,25 +60,53 @@ class Market1501(ImageDataset):
         train = self.process_dir(self.train_dir)
         query = self.process_dir(self.query_dir, is_train=False)
         gallery = self.process_dir(self.gallery_dir, is_train=False)
+        # Mod : tsne_data
+        tsne_data = self.process_dir((self.query_dir,self.train_dir, self.gallery_dir), is_train=False, tsne=True)
+
         if self.market1501_500k:
             gallery += self.process_dir(self.extra_gallery_dir, is_train=False)
 
         super(Market1501, self).__init__(train, query, gallery, **kwargs)
 
-    def process_dir(self, dir_path, is_train=True):
-        img_paths = glob.glob(osp.join(dir_path, '*.jpg'))
-        pattern = re.compile(r'([-\d]+)_c(\d)')
+    def process_dir(self, dir_path, is_train=True, tsne=False):
+        # Mod : add tsne case
+        if tsne:
+            data = []
+            pid_to_images = defaultdict(list)
+            for curr_dir in dir_path:
+                img_paths = glob.glob(osp.join(curr_dir, '*.jpg'))
+                pattern = re.compile(r'([-\d]+)_c(\d)')
 
-        data = []
-        for img_path in img_paths:
-            pid, camid = map(int, pattern.search(img_path).groups())
-            if pid == -1:
-                continue  # junk images are just ignored
-            assert 0 <= pid <= 1501  # pid == 0 means background
-            assert 1 <= camid <= 6
-            camid -= 1  # index starts from 0
-            if is_train:
-                pid = self.dataset_name + "_" + str(pid)
-            data.append((img_path, pid, camid))
+                for img_path in img_paths:
+                    pid, camid = map(int, pattern.search(img_path).groups())
+                    if pid == -1 or pid == 0:
+                        continue  # junk images are just ignored, abandon background
+                    assert 1 <= pid <= 1501  # pid == 0 means background
+                    assert 1 <= camid <= 6
+                    camid -= 1  # index starts from 0
+                    pid_to_images[pid].append((img_path, pid, camid))
+
+            # sample top-k pid
+            k=10
+            top_pids = sorted(pid_to_images, key=lambda x: len(pid_to_images[x]), reverse=True)[:k]
+            for pid in top_pids:
+                print(pid, len(data))
+                data.extend(pid_to_images[pid])
+            print("######")
+        else:
+            img_paths = glob.glob(osp.join(dir_path, '*.jpg'))
+            pattern = re.compile(r'([-\d]+)_c(\d)')
+
+            data = []
+            for img_path in img_paths:
+                pid, camid = map(int, pattern.search(img_path).groups())
+                if pid == -1:
+                    continue  # junk images are just ignored
+                assert 0 <= pid <= 1501  # pid == 0 means background
+                assert 1 <= camid <= 6
+                camid -= 1  # index starts from 0
+                if is_train:
+                    pid = self.dataset_name + "_" + str(pid)
+                data.append((img_path, pid, camid))
 
         return data

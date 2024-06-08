@@ -100,7 +100,9 @@ def part_attention_vit_do_train_with_amp(cfg,
             img = img.to(device)
             target = vid.to(device)
             target_cam = camid.to(device)
+            # t_domains = t_domains.to(device)
             
+            # Mod : width
             _, _, width, _ = img.shape
             widths = torch.tensor([width] * batch_size).unsqueeze(dim = -1).unsqueeze(dim = -1).to(device)
 
@@ -109,6 +111,7 @@ def part_attention_vit_do_train_with_amp(cfg,
             model.to(device)
             with amp.autocast(enabled=True):
                 score, layerwise_global_feat, layerwise_feat_list = model(img)
+                # Mod : poses, keypoints
                 if cfg.INFERABILITY.TRIPLET:
                     poses = list(pose_model(path))
                     keypoints = torch.tensor([poses[sample]['predictions'][0][0]['keypoints'] for sample in range(len(path))]).to(device)
