@@ -150,25 +150,15 @@ class Dataset(object):
                     if (len(front_gallery) > 0 and len(back_query) > 0):
                         free_pid.append(pid)
                     else:
-                        # random sample the front one from query
-                        rand_idx = random.choice(front_query)
-                        front_query = pid_query[rand_idx]
-                        new_query.append(tuple(front_query))
-                        # random sample the back one from gallery
-                        rand_idx = random.choice(back_gallery)
-                        back_gallery = pid_gallery[rand_idx]
-                        new_gallery.append(tuple(back_gallery))
+                        # front query - back gallery
+                        new_query.extend([tuple(pid_query[i]) for i in front_query])
+                        new_gallery.extend([tuple(pid_gallery[i]) for i in back_gallery])
                         front_in_query.append(pid)
                 else:
                     if (len(front_gallery) > 0 and len(back_query) > 0):
-                        # random sample the back one from query
-                        rand_idx = random.choice(back_query)
-                        back_query = pid_query[rand_idx]
-                        new_query.append(tuple(back_query))
-                        # random sample the front one from gallery
-                        rand_idx = random.choice(front_gallery)
-                        front_gallery = pid_gallery[rand_idx]
-                        new_gallery.append(tuple(front_gallery))
+                        # back query - front gallery
+                        new_query.extend([tuple(pid_query[i]) for i in back_query])
+                        new_gallery.extend([tuple(pid_gallery[i]) for i in front_gallery])
                         back_in_query.append(pid)
                     else:
                         # abandon the pid
@@ -188,18 +178,14 @@ class Dataset(object):
             pose_dirs_q = np.array(pose_dirs_q)
             pose_dirs_g = [pose_dict[x[0].split(dataset_name)[1][1:]] for x in pid_gallery]
             pose_dirs_g = np.array(pose_dirs_g)
-            from_query = np.where(pose_dirs_q == rand_idx_list[i])[0]
-            rand_idx = random.choice(from_query)
-            from_query = pid_query[rand_idx].copy()
-            new_query.append(tuple(from_query))
-            from_gallery = np.where(pose_dirs_g == -rand_idx_list[i])[0]
-            rand_idx = random.choice(from_gallery)
-            from_gallery = pid_gallery[rand_idx].copy()
-            new_gallery.append(tuple(from_gallery))
-
+            
             if rand_idx_list[i] == 1:
+                new_query.extend([tuple(pid_query[i]) for i in np.where(pose_dirs_q == 1)[0]])
+                new_gallery.extend([tuple(pid_gallery[i]) for i in np.where(pose_dirs_g == -1)[0]])
                 front_in_query.append(pid)
             else:
+                new_query.extend([tuple(pid_query[i]) for i in np.where(pose_dirs_q == -1)[0]])
+                new_gallery.extend([tuple(pid_gallery[i]) for i in np.where(pose_dirs_g == 1)[0]])
                 back_in_query.append(pid)
                 
         print("passed pids: ", passed_pid, "num of front_in_query: ", len(front_in_query), "num of back_in_query: ", len(back_in_query))

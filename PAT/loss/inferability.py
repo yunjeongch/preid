@@ -120,6 +120,112 @@ def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0
             plt.savefig(f'mixed_von_mises_plot{i}.png')
     return torch.tensor(mixed_pdf_values)
 
+def periodic_distribution_weights_norm(query, counterpart, kappa1, kappa2, weight=0.5, vis=False):
+    """
+    주어진 각도 데이터(query)에 대해 혼합 von Mises 분포의 확률 밀도를 계산하고 정규화하는 함수.
+    
+    Parameters:
+    query (torch.Tensor): B개의 mu1에 해당하는 각도 데이터 (단위: degrees)
+    counterpart (torch.Tensor): 혼합 분포의 확률 밀도를 계산할 각도 데이터 (단위: degrees)
+    kappa1 (float): 첫 번째 von Mises 분포의 집중도
+    kappa2 (float): 두 번째 von Mises 분포의 집중도
+    weight (float): 첫 번째 분포의 가중치 (두 번째 분포의 가중치는 1 - weight)
+    
+    Returns:
+    torch.Tensor: counterpart에 있는 각도에 대한 정규화된 혼합 분포의 확률 밀도 함수 값 (단위: density)
+    """
+    B = query.shape[0]
+    mu1 = query.cpu().numpy()
+    mu2 = 360 - mu1
+    mu2[mu2 > 180] -= 360
+    mu1_rad = np.deg2rad(mu1)
+    mu2_rad = np.deg2rad(mu2)
+    counterpart_rad = np.deg2rad(counterpart.cpu().numpy())
+    mixed_pdf_values = []
+    min_value = 0.2
+    # angles = np.linspace(-np.pi, np.pi, num=360, endpoint=False)
+    norm = [1/2*np.pi] * B
+    for i in range(B):
+        # get mixed_von_mises value for gallery direction
+        pdf1_value = vonmises.pdf(counterpart_rad[i], kappa1, loc=mu1_rad[i])
+        pdf2_value = vonmises.pdf(counterpart_rad[i], kappa2, loc=mu2_rad[i])
+        mixed_pdf_value = (weight * pdf1_value + (1 - weight) * pdf2_value)
+        mixed_pdf_values.append(mixed_pdf_value)
+        
+        # get mean of mixed_von_mises
+        # pdf1_full = vonmises.pdf(angles, kappa1, loc=mu1_rad[i])
+        # pdf2_full = vonmises.pdf(angles, kappa2, loc=mu2_rad[i])
+        # mixed_full = 1/2*np.pi
+        # full_pdf_values.append(mixed_full)
+
+        if vis and i%10 == 0:
+            theta = np.linspace(-np.pi, np.pi, 360)
+            pdf1 = vonmises.pdf(theta, kappa1, loc=mu1_rad[i])
+            pdf2 = vonmises.pdf(theta, kappa2, loc=mu2_rad[i])
+            mixed_pdf = (1-min_value) * (weight * pdf1 + (1 - weight) * pdf2) / norm[i] + min_value
+            plt.figure(figsize=(10, 6))
+            plt.plot(np.rad2deg(theta), pdf1, label=f'von Mises (mean={mu1[i]}°, kappa={kappa1})')
+            plt.plot(np.rad2deg(theta), pdf2, label=f'von Mises (mean={mu2[i]}°, kappa={kappa2})')
+            plt.plot(np.rad2deg(theta), mixed_pdf, label='Mixed von Mises', color='black', linestyle='--')
+            plt.xlabel('Angle (degrees)')
+            plt.ylabel('Density')
+            plt.title('Mixed von Mises Distributions')
+            plt.legend()
+            plt.grid(True)
+            plt.savefig(f'mixed_von_mises_plot{i}.png')
+
+    mixed_pdf_values = np.array(mixed_pdf_values)
+    norm = np.array(norm)
+
+    normalized_pdf_values = (1-min_value) * mixed_pdf_values / norm + min_value
+    
+
+    return torch.tensor(normalized_pdf_values, dtype=torch.float32)
+
+def temp(query, counterpart, kappa1, kappa2, weight=0.5, vis=True):
+    B = query.shape[0]
+    mu1 = query
+    mu2 = 360 - mu1
+    mu2[mu2 > 180] -= 360
+    mu1_rad = np.deg2rad(mu1)
+    mu2_rad = np.deg2rad(mu2)
+    counterpart_rad = np.deg2rad(counterpart)
+    mixed_pdf_values = []
+    min_value = 0.1
+    angles = np.linspace(-np.pi, np.pi, num=360, endpoint=False)
+    full_pdf_values = []
+    for i in range(B):
+        # get mixed_von_mises value for gallery direction
+        pdf1_value = vonmises.pdf(counterpart_rad[i], kappa1, loc=mu1_rad[i])
+        pdf2_value = vonmises.pdf(counterpart_rad[i], kappa2, loc=mu2_rad[i])
+        mixed_pdf_value = (weight * pdf1_value + (1 - weight) * pdf2_value)
+        mixed_pdf_values.append(mixed_pdf_value)
+        
+        # get mean of mixed_von_mises
+        pdf1_full = vonmises.pdf(angles, kappa1, loc=mu1_rad[i])
+        pdf2_full = vonmises.pdf(angles, kappa2, loc=mu2_rad[i])
+        mixed_full = np.mean((weight * pdf1_full + (1 - weight) * pdf2_full))
+        full_pdf_values.append(mixed_full)
+
+        theta = np.linspace(-np.pi, np.pi, 360)
+        pdf1 = vonmises.pdf(theta, kappa1, loc=mu1_rad[i])
+        pdf2 = vonmises.pdf(theta, kappa2, loc=mu2_rad[i])
+        mixed_pdf = (1-min_value) * (weight * pdf1 + (1 - weight) * pdf2) / mixed_full + min_value
+        plt.figure(figsize=(10, 6))
+        plt.plot(np.rad2deg(theta), pdf1, label=f'von Mises (mean={mu1[i]}°, kappa={kappa1})')
+        plt.plot(np.rad2deg(theta), pdf2, label=f'von Mises (mean={mu2[i]}°, kappa={kappa2})')
+        plt.plot(np.rad2deg(theta), mixed_pdf, label='Mixed von Mises', color='black', linestyle='--')
+        plt.xlabel('Angle (degrees)')
+        plt.ylabel('Density')
+        plt.title('Mixed von Mises Distributions')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(f'mixed_von_mises_plot__.png')
+
+
+if __name__ == "__main__":
+    temp(np.array([30]), np.array([-15]), 3, 3)
+
 
 def lenght_of_elipse_curve(t1, t2, a, b):
     if t1 > t2:
