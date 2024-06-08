@@ -1,5 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
+import numpy as np
 
 from scipy.stats import vonmises
 
@@ -76,31 +77,26 @@ def discrete_weights(anchor, pos_or_neg, width):
 
     return weights
 
-def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight, vis=False):
+def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0.5, vis=False):
     """
     주어진 각도 데이터(query)에 대해 혼합 von Mises 분포의 확률 밀도를 계산하는 함수.
-
     Parameters:
     query (torch.Tensor): B개의 mu1에 해당하는 각도 데이터 (단위: degrees)
     counterpart (torch.Tensor): 혼합 분포의 확률 밀도를 계산할 각도 데이터 (단위: degrees)
     kappa1 (float): 첫 번째 von Mises 분포의 집중도
     kappa2 (float): 두 번째 von Mises 분포의 집중도
     weight (float): 첫 번째 분포의 가중치 (두 번째 분포의 가중치는 1 - weight)
-
     Returns:
     torch.Tensor: counterpart에 있는 각도에 대한 혼합 분포의 확률 밀도 함수 값 (단위: density)
     """
-    B = query.size(0)
-
-    mu1 = query.numpy()
+    B = query.shape[0]
+    mu1 = query.cpu().numpy()
     mu2 = 360 - mu1
-    
+    mu2[mu2 > 180] -= 360
     mu1_rad = np.deg2rad(mu1)
     mu2_rad = np.deg2rad(mu2)
-    
-    counterpart_rad = np.deg2rad(counterpart.numpy())
+    counterpart_rad = np.deg2rad(counterpart.cpu().numpy())
     mixed_pdf_values = []
-    
     for i in range(B):
         pdf1_value = vonmises.pdf(counterpart_rad[i], kappa1, loc=mu1_rad[i])
         pdf2_value = vonmises.pdf(counterpart_rad[i], kappa2, loc=mu2_rad[i])
@@ -108,6 +104,9 @@ def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight, vi
         mixed_pdf_values.append(mixed_pdf_value)
         if vis and i%10 == 0:
             theta = np.linspace(0, 2 * np.pi, 360)
+            pdf1 = vonmises.pdf(theta, kappa1, loc=mu1_rad[i])
+            pdf2 = vonmises.pdf(theta, kappa2, loc=mu2_rad[i])
+            mixed_pdf = weight * pdf1 + (1 - weight) * pdf2
             plt.figure(figsize=(10, 6))
             plt.plot(np.rad2deg(theta), pdf1, label=f'von Mises (mean={mu1}°, kappa={kappa1})')
             plt.plot(np.rad2deg(theta), pdf2, label=f'von Mises (mean={mu2}°, kappa={kappa2})')
@@ -118,6 +117,4 @@ def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight, vi
             plt.legend()
             plt.grid(True)
             plt.savefig(f'mixed_von_mises_plot{i}.png')
-    
     return torch.tensor(mixed_pdf_values)
-

@@ -6,6 +6,8 @@ import os
 from utils.reranking import re_ranking
 from utils.file_io import save_jsonl
 import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 
 def euclidean_distance(qf, gf):
@@ -206,7 +208,7 @@ class R1_mAP_with_pose(R1_mAP_eval):
         self.pids.extend(np.asarray(pid))
         self.camids.extend(np.asarray(camid))
         self.imgpaths.extend(imgpath)
-        self.directions.extend(dirs)
+        self.directions.extend(dirs.cpu())
     
     def plot_direction_differences(self, direction_differences, output_file):
         plt.figure(figsize=(10, 6))
@@ -221,6 +223,51 @@ class R1_mAP_with_pose(R1_mAP_eval):
         print('Successfully saved the plot')
         return
     
+    def plot_direction_differences_box(self, direction_differences, output_file):
+        # Flatten the direction differences into a single list and keep track of ranks
+        data = []
+        for differences in direction_differences:
+            for rank, diff in enumerate(differences, start=1):
+                data.append((rank, diff))
+        
+        # Convert to DataFrame for easier plotting
+        df = pd.DataFrame(data, columns=['Rank', 'Pose Difference'])
+        
+        # Create the box plot
+        plt.figure(figsize=(10, 6))
+        sns.boxplot(x='Rank', y='Pose Difference', data=df)
+        plt.xlabel('Rank')
+        plt.ylabel('Absolute Direction Difference')
+        plt.title('Box Plot of Pose Difference by Rank')
+        plt.grid(True)
+        plt.savefig(output_file)
+        print('Successfully saved the plot')
+        return
+    
+    def plot_direction_differences_scat(self, direction_differences, output_file):
+        # Flatten the direction differences into a single list and keep track of ranks
+        data = []
+        for differences in direction_differences:
+            for rank, diff in enumerate(differences, start=1):
+                data.append((rank, diff))
+        
+        # Convert to DataFrame for easier plotting
+        df = pd.DataFrame(data, columns=['Rank', 'Pose Difference'])
+        
+        # Calculate if there's any inversion in the relationship
+        df['Inversion'] = df['Pose Difference'].diff().fillna(0) < 0
+        
+        # Create the scatter plot with inversion highlighted
+        plt.figure(figsize=(12, 6))
+        plt.scatter(df['Rank'], df['Pose Difference'], c=df['Inversion'].map({True: 'red', False: 'blue'}), alpha=0.5)
+        plt.xlabel('Rank')
+        plt.ylabel('Absolute Direction Difference')
+        plt.title('Scatter Plot of Pose Difference by Rank with Inversions Highlighted')
+        plt.grid(True)
+        plt.savefig(output_file)
+        print('Successfully saved the plot')
+        return
+
     def plot_ranks(self, ranks, output_file):
         plt.figure(figsize=(10, 6))
         plt.plot(range(1, len(ranks) + 1), ranks, marker = 'o', alpha = 1)
@@ -274,7 +321,8 @@ class R1_mAP_with_pose(R1_mAP_eval):
         matches = (g_pids[indices] == q_pids[:, np.newaxis]).astype(np.int32)
 
         direction_differences = []
-        ranks = [0, 0, 0, 0, 0]
+        ranks = [0] * 10
+        num_ranks = [0] * 10
         for q_idx in range(num_q):
             # get query pid and camid
             q_pid = q_pids[q_idx]
@@ -294,21 +342,25 @@ class R1_mAP_with_pose(R1_mAP_eval):
             gallery_directions = g_directions[gt_indices]
             direction_diff = np.abs(gallery_directions - q_direction)
             direction_differences.append(direction_diff)
-            for i in range(len(direction_diff)):
+            for i in range(min(len(direction_diff), 10)):
                 ranks[i] += direction_diff[i]
+                num_ranks[i] += 1
 
             rankings.append({
-                'query_index': int(q_idx),
+                'query_pid': int(q_pid),
                 'query_path': q_path,
-                'query_direction': int(q_direction),
+                'query_direction': str(q_direction),
                 'gt_directions': gallery_directions.tolist(),
-                'direction_differences': [int(d) for d in direction_diff],
+                'direction_differences': direction_diff.tolist(),
                 'gt_path': g_paths[gt_indices].tolist()
             })
 
         
         save_jsonl(rankings, save_dir + '.jsonl')
+        self.plot_direction_differences_scat(direction_differences, save_dir + '_rank_pose_scat.png')
+        self.plot_direction_differences_box(direction_differences, save_dir + '_rank_pose_box.png')
         self.plot_direction_differences(direction_differences, save_dir + '_rank_pose.png')
-        ranks = [r / len(direction_differences) for r in ranks]
+        self.plot_direction_differences(direction_differences[:10], save_dir + '_rank_pose_10.png')
+        ranks = [r / n for r, n in zip(ranks, num_ranks)]
         self.plot_ranks(ranks, save_dir + '_ratio.png')
         return

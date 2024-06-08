@@ -8,9 +8,14 @@ from processor.part_attention_vit_processor import do_inference_with_save
 from processor.ori_vit_processor_with_amp import do_inference as do_inf
 from utils.logger import setup_logger
 from mmpose.apis import MMPoseInferencer
-
+import torch.multiprocessing as mp
 
 if __name__ == "__main__":
+
+    
+
+    mp.set_sharing_strategy('file_system')
+
     parser = argparse.ArgumentParser(description="ReID Training")
     parser.add_argument(
         "--config_file", default="./config/PAT.yml", help="path to config file", type=str
@@ -66,8 +71,8 @@ if __name__ == "__main__":
             if args.save:
                 do_inference_with_save(cfg, model, val_loader, num_query, save_dir)
             elif args.pose:
-                pose_model = MMPoseInferencer(pose2d=cfg.MODEL.MMPOSE_CONFIG, pose2d_weights=cfg.MODEL.MMPOSE_CKPT, device = "cuda")
-                do_inf_pat(cfg, model, val_loader, num_query, pose_model)
+                # pose_model = MMPoseInferencer(pose2d=cfg.MODEL.MMPOSE_CONFIG, pose2d_weights=cfg.MODEL.MMPOSE_CKPT, device = "cuda")
+                do_inf_pat(cfg, model, val_loader, num_query)
             else:
                 do_inf_pat(cfg, model, val_loader, num_query)
         else:

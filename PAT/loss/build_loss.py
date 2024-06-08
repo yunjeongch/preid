@@ -21,7 +21,7 @@ def build_loss(cfg, num_classes):
     center_criterion = CenterLoss(num_classes=num_classes, feat_dim=feat_dim, use_gpu=True)  # center loss
     if 'triplet' in cfg.MODEL.METRIC_LOSS_TYPE:
         if cfg.MODEL.NO_MARGIN:
-            triplet = TripletLoss(inferability = cfg.INFERABILITY.TRIPLET, discrete = cfg.INFERABILITY.DISCRETE, alpha = cfg.INFERABILITY.ALPHA, pos = cfg.INFERABILITY.POS)
+            triplet = TripletLoss(inferability = cfg.INFERABILITY.TRIPLET, discrete = cfg.INFERABILITY.DISCRETE, periodic = cfg.INFERABILITY.PERIODIC, kappa1 = cfg.INFERABILITY.KAPPA1, kappa2 = cfg.INFERABILITY.KAPPA2, pos = cfg.INFERABILITY.POS)
             print("using soft triplet loss for training")
         else:
             triplet = TripletLoss(cfg.SOLVER.MARGIN)  # triplet loss
@@ -43,7 +43,7 @@ def build_loss(cfg, num_classes):
 
     # softmax & triplet
     elif cfg.DATALOADER.SAMPLER == 'softmax_triplet' or 'GS':
-        def loss_func(score, feat, target, domains=None, t_domains=None, all_posvid=None, soft_label=False, soft_weight=0.1, soft_lambda=0.2, keypoints = None, img_widths = None):
+        def loss_func(score, feat, target, domains=None, t_domains=None, all_posvid=None, soft_label=False, soft_weight=0.1, soft_lambda=0.2, _3d_dir = None):
             if cfg.MODEL.METRIC_LOSS_TYPE == 'triplet':
                 if cfg.MODEL.IF_LABELSMOOTH == 'on':
                     if name == 'local_attention_vit' and cfg.MODEL.PC_LOSS:
@@ -53,7 +53,7 @@ def build_loss(cfg, num_classes):
                 else:
                     ID_LOSS = F.cross_entropy(score, target)
 
-                TRI_LOSS = triplet(feat, target, keypoints = keypoints, widths = img_widths)[0]
+                TRI_LOSS = triplet(feat, target, _3d_dir)[0]
                 # DOMAIN_LOSS = xent(domains, t_domains)
                 return cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS + \
                                cfg.MODEL.TRIPLET_LOSS_WEIGHT * TRI_LOSS

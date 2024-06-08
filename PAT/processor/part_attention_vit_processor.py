@@ -17,7 +17,7 @@ import numpy as np
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))))
 
-from loss.inferability import front_back
+from loss.inferability import periodic_distribution_weights
 
 def part_attention_vit_do_train_with_amp(cfg,
              model,
@@ -29,7 +29,7 @@ def part_attention_vit_do_train_with_amp(cfg,
              num_query, local_rank,
              patch_centers = None,
              pc_criterion= None,
-             pose_model = None):
+             pose_dict = None):
     log_period = cfg.SOLVER.LOG_PERIOD
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     eval_period = cfg.SOLVER.EVAL_PERIOD
@@ -79,7 +79,10 @@ def part_attention_vit_do_train_with_amp(cfg,
     
     best_mAP = 0.0
     best_index = 1
+    stop_training = False
     for epoch in range(1, epochs + 1):
+        if stop_training:
+            break
         start_time = time.time()
         total_loss_meter.reset()
         reid_loss_meter.reset()
@@ -101,22 +104,13 @@ def part_attention_vit_do_train_with_amp(cfg,
             target = vid.to(device)
             target_cam = camid.to(device)
             # t_domains = t_domains.to(device)
-            
-            # Mod : width
-            _, _, width, _ = img.shape
-            widths = torch.tensor([width] * batch_size).unsqueeze(dim = -1).unsqueeze(dim = -1).to(device)
-
-            # t_domains = t_domains.to(device)
 
             model.to(device)
             with amp.autocast(enabled=True):
                 score, layerwise_global_feat, layerwise_feat_list = model(img)
-                # Mod : poses, keypoints
                 if cfg.INFERABILITY.TRIPLET:
-                    poses = list(pose_model(path))
-                    keypoints = torch.tensor([poses[sample]['predictions'][0][0]['keypoints'] for sample in range(len(path))]).to(device)
+                    _3d_dir = torch.tensor([pose_dict[q] for q  in img_path]).to(device)
                 
-                keypoints = None
                 ############## patch learning ######################
                 patch_agent, position = patch_centers.get_soft_label(img_path, layerwise_feat_list[-1], vid=vid, camid=camid)   # patch_agent: [3, N, emb_dim], position: [N,]
                 l_ploss = cfg.MODEL.PC_LR
@@ -132,11 +126,10 @@ def part_attention_vit_do_train_with_amp(cfg,
                     (ID + Triplet loss)
                     '''
                     
-                    reid_loss = loss_fn(score, layerwise_global_feat[-1], target, all_posvid=all_posvid, soft_label=cfg.MODEL.SOFT_LABEL, soft_weight=cfg.MODEL.SOFT_WEIGHT, soft_lambda=cfg.MODEL.SOFT_LAMBDA, keypoints = keypoints, img_widths = widths)
+                    reid_loss = loss_fn(score, layerwise_global_feat[-1], target, all_posvid=all_posvid, soft_label=cfg.MODEL.SOFT_LABEL, soft_weight=cfg.MODEL.SOFT_WEIGHT, soft_lambda=cfg.MODEL.SOFT_LAMBDA, _3d_dir = _3d_dir)
                     if np.isnan(reid_loss.item()):
-                        print('feat: ', feat)
-                        print('score: ', score)
-                        print('img: ', img)
+                        stop_training = True
+                        break
                 else:
                     ploss = torch.tensor([0.]).cuda()
                     reid_loss = loss_fn(score, layerwise_global_feat[-1], target, soft_label=cfg.MODEL.SOFT_LABEL)
@@ -167,6 +160,8 @@ def part_attention_vit_do_train_with_amp(cfg,
                 tbWriter.add_scalar('train/reid_loss', reid_loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
                 tbWriter.add_scalar('train/acc', acc_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
                 tbWriter.add_scalar("train/pc_loss", pc_loss_meter.avg, n_iter+1+(epoch-1)*len(train_loader))
+        if stop_training:
+            break
 
         end_time = time.time()
         time_per_batch = (end_time - start_time) / (n_iter + 1)
@@ -239,14 +234,14 @@ def do_inference(cfg,
                  model,
                  val_loader,
                  num_query,
-                 pose_model = None):
+                 pose_dict = None):
     device = "cuda"
     logger = logging.getLogger("PAT.test")
     logger.info("Enter inferencing")
 
-    if not (pose_model is None):
-        pose_ranker = R1_mAP_with_pose(num_query, max_rank = 50, feat_norm = cfg.TEST.FEAT_NORM)
-        pose_ranker.reset()
+    # if not (pose_dict is None):
+    #     pose_ranker = R1_mAP_with_pose(num_query, max_rank = 50, feat_norm = cfg.TEST.FEAT_NORM)
+    #     pose_ranker.reset()
 
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
 
@@ -273,11 +268,11 @@ def do_inference(cfg,
             img = img.to(device)
             # camids = camids.to(device)
             feat = model(img)
-            if not (pose_model is None):
-                poses = list(pose_model(imgpath))
-                keypoints = torch.tensor([poses[sample]['predictions'][0][0]['keypoints'] for sample in range(len(imgpath))]).to(device)
-                directions = front_back(keypoints, widths)
-                pose_ranker.update((feat, pid, camids, imgpath, directions))
+            # if not (pose_dict is None):
+            #     poses = list(pose_model(imgpath))
+            #     keypoints = torch.tensor([poses[sample]['predictions'][0][0]['keypoints'] for sample in range(len(imgpath))]).to(device)
+            #     directions = calculate_directions(keypoints, widths)
+            #     pose_ranker.update((feat, pid, camids, imgpath, directions))
             evaluator.update((feat, pid, camids, imgpath))
             img_path_list.extend(imgpath)
 
@@ -287,8 +282,8 @@ def do_inference(cfg,
     for r in [1, 5, 10]:
         logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
     logger.info("total inference time: {:.2f}".format(time.time() - t0))
-    if not (pose_model is None):
-        pose_ranker.relative_rank_of_GT(save_dir = cfg.LOG_NAME.replace('/', ''))
+    # if not (pose_dict is None):
+    #     pose_ranker.relative_rank_of_GT(save_dir = cfg.DATASETS.TRAIN[0] + '_' + '_' + cfg.LOG_NAME.replace('/', '') + cfg.DATASETS.TEST[0])
     return cmc, mAP
 
 def do_inference_with_save(cfg,

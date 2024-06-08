@@ -74,9 +74,16 @@ if __name__ == '__main__':
     model_name = cfg.MODEL.NAME
     model = make_model(cfg, modelname=model_name, num_class=num_classes, camera_num=None, view_num=None)
     if cfg.INFERABILITY.TRIPLET:
-        pose_model = MMPoseInferencer(pose2d=cfg.MODEL.MMPOSE_CONFIG, pose2d_weights=cfg.MODEL.MMPOSE_CKPT, device = "cuda")
+        ## read 3d direction file
+        dset = {'Market1501': 'market1501', 'CUHK03': 'cuhk03', 'MSMT17':'MSMT17_V2', 'RandPerson': 'randperson_subset'}
+        dataset_path = os.path.join(cfg.DATASETS.ROOT_DIR, dset[cfg.DATASETS.TRAIN[0]])
+        pose_path = os.path.join(dataset_path, 'torso_direction.txt')
+        pose_dict = {}
+        with open(pose_path, 'r') as f:
+            for line in f:
+                pose_dict[line.split(' ')[0]] = float(line.split(' ')[1])
     else:
-        pose_model = None
+        pose_dict = None
     if cfg.MODEL.FREEZE_PATCH_EMBED and 'resnet' not in cfg.MODEL.NAME: # trick from moco v3
         model.base.patch_embed.proj.weight.requires_grad = False
         model.base.patch_embed.proj.bias.requires_grad = False
@@ -122,5 +129,5 @@ if __name__ == '__main__':
             num_query, args.local_rank,
             patch_centers = patch_centers,
             pc_criterion = pc_criterion,
-            pose_model = pose_model
+            pose_dict = pose_dict
         )

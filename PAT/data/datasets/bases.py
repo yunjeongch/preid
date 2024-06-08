@@ -33,7 +33,7 @@ class Dataset(object):
         self.verbose = verbose
         
         # half and half experiment
-        TEST_0605 = True
+        TEST_0605 = False
         if TEST_0605:
             self.query, self.gallery = self.modify_query_and_gallery(self.query, self.gallery)
 
