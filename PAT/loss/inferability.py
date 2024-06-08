@@ -97,7 +97,7 @@ def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0
     mu2_rad = np.deg2rad(mu2)
     counterpart_rad = np.deg2rad(counterpart.cpu().numpy())
     mixed_pdf_values = []
-    min_value = 0.2
+    min_value = 0.1
     for i in range(B):
         pdf1_value, pdf1_norm = vonmises.pdf(counterpart_rad[i], kappa1, loc=mu1_rad[i]), vonmises.pdf(mu1_rad[i], kappa1, loc=mu1_rad[i])
         pdf2_value, pdf2_norm = vonmises.pdf(counterpart_rad[i], kappa2, loc=mu2_rad[i]), vonmises.pdf(mu2_rad[i], kappa2, loc=mu2_rad[i])
