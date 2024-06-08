@@ -182,51 +182,6 @@ def periodic_distribution_weights_norm(query, counterpart, kappa1, kappa2, weigh
 
     return torch.tensor(normalized_pdf_values, dtype=torch.float32)
 
-def temp(query, counterpart, kappa1, kappa2, weight=0.5, vis=True):
-    B = query.shape[0]
-    mu1 = query
-    mu2 = 360 - mu1
-    mu2[mu2 > 180] -= 360
-    mu1_rad = np.deg2rad(mu1)
-    mu2_rad = np.deg2rad(mu2)
-    counterpart_rad = np.deg2rad(counterpart)
-    mixed_pdf_values = []
-    min_value = 0.1
-    angles = np.linspace(-np.pi, np.pi, num=360, endpoint=False)
-    full_pdf_values = []
-    for i in range(B):
-        # get mixed_von_mises value for gallery direction
-        pdf1_value = vonmises.pdf(counterpart_rad[i], kappa1, loc=mu1_rad[i])
-        pdf2_value = vonmises.pdf(counterpart_rad[i], kappa2, loc=mu2_rad[i])
-        mixed_pdf_value = (weight * pdf1_value + (1 - weight) * pdf2_value)
-        mixed_pdf_values.append(mixed_pdf_value)
-        
-        # get mean of mixed_von_mises
-        pdf1_full = vonmises.pdf(angles, kappa1, loc=mu1_rad[i])
-        pdf2_full = vonmises.pdf(angles, kappa2, loc=mu2_rad[i])
-        mixed_full = np.mean((weight * pdf1_full + (1 - weight) * pdf2_full))
-        full_pdf_values.append(mixed_full)
-
-        theta = np.linspace(-np.pi, np.pi, 360)
-        pdf1 = vonmises.pdf(theta, kappa1, loc=mu1_rad[i])
-        pdf2 = vonmises.pdf(theta, kappa2, loc=mu2_rad[i])
-        mixed_pdf = (1-min_value) * (weight * pdf1 + (1 - weight) * pdf2) / mixed_full + min_value
-        plt.figure(figsize=(10, 6))
-        plt.plot(np.rad2deg(theta), pdf1, label=f'von Mises (mean={mu1[i]}°, kappa={kappa1})')
-        plt.plot(np.rad2deg(theta), pdf2, label=f'von Mises (mean={mu2[i]}°, kappa={kappa2})')
-        plt.plot(np.rad2deg(theta), mixed_pdf, label='Mixed von Mises', color='black', linestyle='--')
-        plt.xlabel('Angle (degrees)')
-        plt.ylabel('Density')
-        plt.title('Mixed von Mises Distributions')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(f'mixed_von_mises_plot__.png')
-
-
-if __name__ == "__main__":
-    temp(np.array([30]), np.array([-15]), 3, 3)
-
-
 def lenght_of_elipse_curve(t1, t2, a, b):
     if t1 > t2:
         t_range_1 = np.linspace(t1, np.pi, int(100 * (np.pi - t1) / np.pi))
@@ -280,7 +235,7 @@ def symmetric_t_in_half_elipse(from_t, to_t):
         to_t = to_t
     return from_t, to_t
 
-def periodic_distribution_weights(q_theta, g_theta, a = 1, b = 1.5):
+def periodic_distribution(q_theta, g_theta, a = 1, b = 1.5):
     from_t_q, to_t_q = from_to_t(q_theta, a, b)
     from_t_g, to_t_g = from_to_t(g_theta, a, b)
     # inter_from_t, inter_to_t, _, _  = intersection_union_of_ranges(from_t_q, to_t_q, from_t_g, to_t_g)
@@ -300,8 +255,10 @@ def periodic_distribution_weights(q_theta, g_theta, a = 1, b = 1.5):
 def elipse_weights(query, counterpart, a = 1, b = 1.5, min_weight = 0.5):
     B = query.shape[0]
     weights = []
+    query = query.cpu().numpy()
+    counterpart = counterpart.cpu().numpy()
     for i in range(B):
-        inter_ratio = periodic_distribution_weights(query[i], counterpart[i], a, b)
+        inter_ratio = periodic_distribution(query[i], counterpart[i], a, b)
         weight = 2 * inter_ratio * (1-min_weight) + min_weight
         weights.append(weight)
     return torch.tensor(weights)
