@@ -77,7 +77,7 @@ def discrete_weights(anchor, pos_or_neg, width):
 
     return weights
 
-def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0.5, vis=False):
+def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0.5, vis=True):
     """
     주어진 각도 데이터(query)에 대해 혼합 von Mises 분포의 확률 밀도를 계산하는 함수.
     Parameters:
@@ -103,13 +103,13 @@ def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0
         mixed_pdf_value = weight * pdf1_value + (1 - weight) * pdf2_value
         mixed_pdf_values.append(mixed_pdf_value)
         if vis and i%10 == 0:
-            theta = np.linspace(0, 2 * np.pi, 360)
+            theta = np.linspace(-np.pi, np.pi, 360)
             pdf1 = vonmises.pdf(theta, kappa1, loc=mu1_rad[i])
             pdf2 = vonmises.pdf(theta, kappa2, loc=mu2_rad[i])
             mixed_pdf = weight * pdf1 + (1 - weight) * pdf2
             plt.figure(figsize=(10, 6))
-            plt.plot(np.rad2deg(theta), pdf1, label=f'von Mises (mean={mu1}°, kappa={kappa1})')
-            plt.plot(np.rad2deg(theta), pdf2, label=f'von Mises (mean={mu2}°, kappa={kappa2})')
+            plt.plot(np.rad2deg(theta), pdf1, label=f'von Mises (mean={mu1[i]}°, kappa={kappa1})')
+            plt.plot(np.rad2deg(theta), pdf2, label=f'von Mises (mean={mu2[i]}°, kappa={kappa2})')
             plt.plot(np.rad2deg(theta), mixed_pdf, label='Mixed von Mises', color='black', linestyle='--')
             plt.xlabel('Angle (degrees)')
             plt.ylabel('Density')
