@@ -77,7 +77,7 @@ def discrete_weights(anchor, pos_or_neg, width):
 
     return weights
 
-def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0.5, vis=True):
+def periodic_distribution_weights(query, counterpart, kappa1, kappa2, weight = 0.5, vis=False):
     """
     주어진 각도 데이터(query)에 대해 혼합 von Mises 분포의 확률 밀도를 계산하는 함수.
     Parameters:
